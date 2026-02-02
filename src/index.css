@@ -1,9 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
+    /* === Core Backgrounds === */
+    --app-bg: #0b0b0c;
     --bg-primary: #0f0f0f;
     --bg-secondary: #1e1e1e;
     --bg-tertiary: #2a2a2a;
@@ -15,18 +19,27 @@
     --accent-red-subtle: rgba(255, 0, 0, 0.15);
     --status-available: #22c55e;
     --status-unavailable: #ef4444;
-  }
 
-  * {
-    @apply transition-colors duration-200;
+    /* === Glassmorphism Surfaces === */
+    --surface-1: rgba(30, 30, 30, 0.70);
+    --surface-2: rgba(30, 30, 30, 0.85);
+    --surface-3: rgba(255, 255, 255, 0.04);
+    --surface-border: rgba(255, 255, 255, 0.08);
+    --blur: 12px;
+
+    /* === Shadows & Radii === */
+    --shadow-1: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --shadow-2: 0 18px 50px rgba(0, 0, 0, 0.55);
+    --radius-md: 12px;
+    --radius-lg: 16px;
   }
 
   html {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   }
 
   body {
-    background: var(--bg-primary);
+    background: var(--app-bg);
     color: var(--text-primary);
   }
 }
@@ -75,21 +88,28 @@
 }
 
 .card {
-  background: var(--bg-secondary);
-  border-radius: 12px;
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card-glow {
-  background: var(--bg-secondary);
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  background: var(--surface-2);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
 }
 
 .input {
   @apply w-full px-4 py-3 rounded-[12px] transition;
-  background: var(--bg-secondary);
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--surface-border);
   color: var(--text-primary);
-  border: 1px solid transparent;
 }
 
 .input::placeholder {
@@ -103,9 +123,10 @@
 
 .input-search {
   @apply w-full px-4 py-3 pl-12 rounded-[12px] transition;
-  background: var(--bg-secondary);
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--surface-border);
   color: var(--text-primary);
-  border: 1px solid transparent;
 }
 
 .input-search::placeholder {
@@ -118,7 +139,72 @@
 }
 
 .glass-effect {
-  @apply rounded-[12px];
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+}
+
+/* === Reusable surface primitives === */
+.surface {
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+}
+
+.surface:hover {
+  transform: scale(1.03);
+  box-shadow: var(--shadow-2);
+}
+
+.modal-surface {
+  background: var(--surface-2);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+
+/* === Card hover enhancements === */
+.card {
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+}
+
+.card:hover {
+  transform: scale(1.03);
+  box-shadow: var(--shadow-2);
+}
+
+/* === Strict 16:9 aspect ratio for thumbnails === */
+.aspect-video {
+  aspect-ratio: 16 / 9;
+}
+
+/* === Typography utilities === */
+.display {
+  @apply text-3xl font-semibold tracking-tight;
+}
+.title {
+  @apply text-xl font-semibold;
+}
+.section-label {
+  @apply text-sm font-medium;
+  color: var(--text-secondary);
+}
+.body {
+  @apply text-sm;
+  color: var(--text-primary);
+}
+.meta {
+  @apply text-xs;
+  color: var(--text-secondary);
 }

@@ -11,6 +11,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [isValidating, setIsValidating] = useState(false);
+  const [tested, setTested] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('youtube_api_key');
@@ -27,11 +28,24 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
     setIsValidating(true);
     setError('');
+    setSaved(false);
+    setTested(false);
+
+    const redactedKey = `${key.slice(0, 4)}...${key.slice(-4)}`;
 
     try {
-      const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=id&id=test&key=${key}`
-      );
+      const testUrl = `https://www.googleapis.com/youtube/v3/videos?part=id&id=test&key=${key}`;
+      const loggedUrl = testUrl.replace(key, '***REDACTED***');
+      console.log('[YouTube API Key Test] Starting validation');
+      console.log('[YouTube API Key Test] Key provided:', !!key);
+      console.log('[YouTube API Key Test] Key preview:', redactedKey);
+      console.log('[YouTube API Key Test] Request URL:', loggedUrl);
+
+      const response = await fetch(testUrl);
+      console.log('[YouTube API Key Test] Response status:', response.status, response.statusText);
+
+      const bodyText = await response.text().catch(() => '');
+      console.log('[YouTube API Key Test] Response body (raw):', bodyText);
 
       if (response.status === 403) {
         setError('Invalid API key. Please check your YouTube Data API key.');
@@ -43,12 +57,25 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         return false;
       }
 
+      if (!response.ok) {
+        setError('Failed to validate API key. Please try again.');
+        return false;
+      }
+
       return true;
     } catch (err) {
-      setError('Failed to validate API key. Please check your internet connection.');
+      console.error('[YouTube API Key Test] Validation failed (full details):', err);
+      setError('Check your internet connection');
       return false;
     } finally {
       setIsValidating(false);
+    }
+  };
+
+  const handleTest = async () => {
+    const isValid = await validateApiKey(apiKey);
+    if (isValid) {
+      setTested(true);
     }
   };
 
@@ -57,6 +84,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     if (isValid) {
       localStorage.setItem('youtube_api_key', apiKey);
       setSaved(true);
+      setTested(false);
       setTimeout(() => setSaved(false), 3000);
     }
   };
@@ -66,6 +94,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       localStorage.removeItem('youtube_api_key');
       setApiKey('');
       setSaved(false);
+      setTested(false);
       setError('');
     }
   };
@@ -133,6 +162,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               </div>
             )}
 
+            {tested && (
+              <div className="flex items-start space-x-2 bg-green-500/20 border border-green-500/50 text-green-200 px-3 py-2 rounded-lg mb-4">
+                <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <p className="text-xs">API key is valid!</p>
+              </div>
+            )}
+
             {saved && (
               <div className="flex items-start space-x-2 bg-green-500/20 border border-green-500/50 text-green-200 px-3 py-2 rounded-lg mb-4">
                 <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -161,6 +197,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 Clear
               </button>
             )}
+            <button
+              onClick={handleTest}
+              disabled={isValidating || !apiKey}
+              className="btn-secondary"
+            >
+              {isValidating ? 'Testing...' : 'Test API Key'}
+            </button>
             <button
               onClick={onClose}
               className="btn-secondary"

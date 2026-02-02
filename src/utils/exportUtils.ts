@@ -30,7 +30,7 @@ export function downloadCSV(scenes: Scene[], filename: string) {
     scene.platform || '',
     scene.category || '',
     (() => {
-      const s = scene.status === 'available' ? 'available' : 'unavailable';
+      const s = scene.status === 'available' ? 'available' : (scene.status === 'private' ? 'private' : 'unavailable');
       return s;
     })(),
     scene.url || '',
@@ -174,6 +174,9 @@ export function downloadHTML(scenes: Scene[], filename: string) {
     .status-available {
       color: #10b981;
     }
+    .status-private {
+      color: #f59e0b;
+    }
     .status-unavailable {
       color: #ef4444;
     }
@@ -227,7 +230,7 @@ export function downloadHTML(scenes: Scene[], filename: string) {
       ${scenes
         .map(
           (scene) => {
-            const status = scene.status === 'available' ? 'available' : 'unavailable';
+            const status = scene.status === 'available' ? 'available' : (scene.status === 'private' ? 'private' : 'unavailable');
             const dateIso = scene.upload_date || scene.created_at || '';
             const dateLabel = dateIso ? new Date(dateIso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
             return `

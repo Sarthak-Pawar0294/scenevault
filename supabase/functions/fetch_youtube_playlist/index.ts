@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+declare const Deno: any;
+
 interface PlaylistItem {
   title: string;
   videoId: string;
@@ -31,9 +33,23 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    console.log('[fetch_youtube_playlist] Incoming request:', {
+      method: req.method,
+      hasAuthHeader: !!req.headers.get('authorization'),
+      contentType: req.headers.get('content-type'),
+    });
+
     const { playlistId, apiKey, maxResults = 50, pageToken } = await req.json() as FetchPlaylistRequest;
 
+    console.log('[fetch_youtube_playlist] Parsed body:', {
+      playlistId,
+      apiKeyProvided: !!apiKey,
+      maxResults,
+      pageTokenProvided: !!pageToken,
+    });
+
     if (!playlistId || !apiKey) {
+      console.log('[fetch_youtube_playlist] Missing required parameters');
       return new Response(
         JSON.stringify({
           error: "Missing required parameters: playlistId and apiKey",
@@ -54,12 +70,30 @@ Deno.serve(async (req: Request) => {
       url.searchParams.append("pageToken", pageToken);
     }
 
+    const loggedUrl = url.toString().replace(apiKey, '***REDACTED***');
+    console.log('[fetch_youtube_playlist] YouTube request URL:', loggedUrl);
+
     const response = await fetch(url.toString());
 
+    console.log('[fetch_youtube_playlist] YouTube response:', {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+    });
+
     if (!response.ok) {
-      const errorData = await response.json();
-      const errorMessage =
-        errorData?.error?.message || "Failed to fetch YouTube playlist";
+      const errorText = await response.text().catch(() => '');
+      console.log('[fetch_youtube_playlist] YouTube error body (raw):', errorText);
+      const errorData = (() => {
+        try {
+          return JSON.parse(errorText || '{}');
+        } catch {
+          return {};
+        }
+      })() as any;
+
+      const errorMessage = errorData?.error?.message || "Failed to fetch YouTube playlist";
+      console.log('[fetch_youtube_playlist] YouTube error parsed:', { errorMessage, errorData });
 
       if (response.status === 404) {
         return new Response(
@@ -102,7 +136,15 @@ Deno.serve(async (req: Request) => {
       throw new Error(`YouTube API error: ${errorMessage}`);
     }
 
-    const data = await response.json();
+    const text = await response.text().catch(() => '');
+    console.log('[fetch_youtube_playlist] YouTube body (raw):', text);
+    const data = (() => {
+      try {
+        return JSON.parse(text || '{}');
+      } catch {
+        return {};
+      }
+    })() as any;
     const items: PlaylistItem[] = (data.items || []).map((item: any) => {
       const snippet = item.snippet;
       return {
@@ -130,7 +172,7 @@ Deno.serve(async (req: Request) => {
       }
     );
   } catch (error) {
-    console.error("Error:", error);
+    console.error('[fetch_youtube_playlist] Error (full details):', error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : "Internal server error",

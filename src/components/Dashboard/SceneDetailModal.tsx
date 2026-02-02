@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Scene, Category, Status } from '../../types';
-import { X, ExternalLink, Edit, Trash2, CheckCircle, XCircle, Loader2, Save, Play, Youtube } from 'lucide-react';
+import { X, ExternalLink, Edit, Trash2, CheckCircle, XCircle, Loader2, Save, Play, Youtube, Lock, Clock, Calendar } from 'lucide-react';
 
 interface SceneDetailModalProps {
   scene: Scene;
@@ -12,7 +12,7 @@ interface SceneDetailModalProps {
 }
 
 const categories: Category[] = ['F/M', 'F/F', 'M/F', 'M/M'];
-const statuses: Status[] = ['available', 'unavailable'];
+const statuses: Status[] = ['available', 'private', 'unavailable'];
 
 export function SceneDetailModal({
   scene,
@@ -21,7 +21,7 @@ export function SceneDetailModal({
   onCheckStatus,
   onUpdate,
 }: SceneDetailModalProps) {
-  const normalizedStatus: Status = scene.status === 'available' ? 'available' : 'unavailable';
+  const normalizedStatus: Status = scene.status === 'available' ? 'available' : (scene.status === 'private' ? 'private' : 'unavailable');
   const [isEditing, setIsEditing] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -35,11 +35,13 @@ export function SceneDetailModal({
   const statusIcons = {
     available: <CheckCircle className="w-5 h-5 text-green-500" />,
     unavailable: <XCircle className="w-5 h-5 text-red-500" />,
+    private: <Lock className="w-5 h-5 text-amber-400" />,
   };
 
   const statusColors = {
     available: 'bg-green-500/10 text-green-400 border border-green-500/20',
     unavailable: 'bg-red-500/10 text-red-400 border border-red-500/20',
+    private: 'bg-amber-500/10 text-amber-300 border border-amber-500/20',
   };
 
   const handleCheckStatus = async () => {
@@ -82,6 +84,12 @@ export function SceneDetailModal({
       })
     : 'Unknown';
 
+  const publishedAt = scene.upload_date ? new Date(scene.upload_date) : null;
+  const publishedLabel = publishedAt
+    ? new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric' }).format(publishedAt)
+    : null;
+  const uploadYear = publishedAt ? publishedAt.getFullYear() : null;
+
   return (
     <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
@@ -91,28 +99,60 @@ export function SceneDetailModal({
         className="card max-w-4xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-[#27272a] border-b border-zinc-700 p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-white flex-1 pr-4 line-clamp-2">{scene.title}</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-zinc-700 rounded transition flex-shrink-0"
-          >
-            <X className="w-6 h-6 text-zinc-400" />
-          </button>
+        <div className="sticky top-0 bg-[#27272a]/80 backdrop-blur border-b border-zinc-700 p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-2xl font-bold text-zinc-100 pr-4 line-clamp-2">{scene.title}</h2>
+
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+                {scene.platform === 'YouTube' && (
+                  <span className="inline-flex items-center gap-1 font-semibold text-red-500">
+                    <Youtube className="w-4 h-4" />
+                    <span>YouTube</span>
+                  </span>
+                )}
+
+                <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-white/10 text-zinc-100 border border-white/10">
+                  {scene.category}
+                </span>
+
+                {uploadYear && <span className="text-zinc-400">{uploadYear}</span>}
+
+                {scene.channel_name && (
+                  <span className="inline-flex items-center gap-2 text-zinc-400">
+                    <span className="text-zinc-500">•</span>
+                    <span className="text-zinc-100 font-medium">{scene.channel_name}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-zinc-700 rounded transition flex-shrink-0"
+            >
+              <X className="w-6 h-6 text-zinc-400" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 space-y-6">
-          {scene.thumbnail && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div
-                className="relative w-full bg-zinc-800 rounded-lg overflow-hidden cursor-pointer group"
+                className="relative w-full aspect-video bg-zinc-800 rounded-lg overflow-hidden cursor-pointer group"
                 onClick={handleThumbnailClick}
               >
-                <img
-                  src={scene.thumbnail}
-                  alt={scene.title}
-                  className="w-full h-auto object-cover max-h-96 transition-transform duration-300 group-hover:scale-105 group-hover:brightness-110"
-                />
+                {scene.thumbnail ? (
+                  <img
+                    src={scene.thumbnail}
+                    alt={scene.title}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 group-hover:brightness-110"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-zinc-800" />
+                )}
+
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
                   <div className="bg-red-600 rounded-full p-4 shadow-lg transform group-hover:scale-110 transition-transform duration-300">
                     <Play className="w-8 h-8 text-white fill-white" />
@@ -132,49 +172,41 @@ export function SceneDetailModal({
                 </a>
               )}
             </div>
-          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Platform</p>
-              <p className="text-lg text-white font-semibold">{scene.platform}</p>
-            </div>
+            <div className="space-y-4">
+              {scene.timestamp && (
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-zinc-800/40 border border-zinc-700">
+                  <Clock className="w-5 h-5 text-zinc-400" />
+                  <div>
+                    <div className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Timestamp</div>
+                    <div className="text-xl font-semibold text-zinc-100">{scene.timestamp}</div>
+                  </div>
+                </div>
+              )}
 
-            <div>
-              <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Status</p>
-              <div className={`inline-flex items-center space-x-2 px-3 py-2 rounded-lg ${statusColors[normalizedStatus]}`}>
-                {isChecking ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  statusIcons[normalizedStatus]
-                )}
-                <span className="font-medium capitalize">{normalizedStatus}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Status</div>
+                  <div className={`inline-flex items-center space-x-2 px-3 py-2 rounded-lg ${statusColors[normalizedStatus]}`}>
+                    {isChecking ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      statusIcons[normalizedStatus]
+                    )}
+                    <span className="font-medium capitalize">{normalizedStatus}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Published</div>
+                  <div className="flex items-center gap-2 text-zinc-100 font-semibold">
+                    <Calendar className="w-4 h-4 text-zinc-400" />
+                    <span>{publishedLabel ? `Published on ${publishedLabel}` : 'Published date unknown'}</span>
+                  </div>
+                  <div className="text-xs text-zinc-400 mt-1">Added {formattedDate}</div>
+                </div>
               </div>
             </div>
-
-            <div>
-              <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Category</p>
-              <p className="text-lg text-white font-semibold">{scene.category}</p>
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Date Added</p>
-              <p className="text-lg text-white font-semibold">{formattedDate}</p>
-            </div>
-
-            {scene.timestamp && (
-              <div>
-                <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Timestamp</p>
-                <p className="text-lg text-white font-semibold">{scene.timestamp}</p>
-              </div>
-            )}
-
-            {scene.channel_name && (
-              <div>
-                <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide mb-1">Channel</p>
-                <p className="text-lg text-white font-semibold">{scene.channel_name}</p>
-              </div>
-            )}
           </div>
 
           {scene.notes && !isEditing && (

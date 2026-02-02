@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Scene, SceneFormData, Platform, Category } from '../../types';
+import { Scene, SceneFormData, Platform, Category, Tag } from '../../types';
 import { X } from 'lucide-react';
+import { TagPicker } from './TagPicker';
 
 interface SceneFormProps {
   scene?: Scene;
   defaultPlatform?: Platform;
   recentScenes?: Scene[];
+  allTags?: Tag[];
+  onCreateTag?: (name: string) => Promise<Tag>;
   onSubmit: (data: SceneFormData) => Promise<void>;
   onCancel: () => void;
 }
@@ -13,7 +16,7 @@ interface SceneFormProps {
 const platforms: Platform[] = ['YouTube', 'JioHotstar', 'Zee5', 'SonyLIV', 'Other'];
 const categories: Category[] = ['F/M', 'F/F', 'M/F', 'M/M'];
 
-export function SceneForm({ scene, defaultPlatform, onSubmit, onCancel }: SceneFormProps) {
+export function SceneForm({ scene, defaultPlatform, onSubmit, onCancel, allTags = [], onCreateTag }: SceneFormProps) {
   const [loading, setLoading] = useState(false);
   const [thumbnailPreviewOk, setThumbnailPreviewOk] = useState(true);
   const [formData, setFormData] = useState<SceneFormData>({
@@ -25,6 +28,7 @@ export function SceneForm({ scene, defaultPlatform, onSubmit, onCancel }: SceneF
     timestamp: scene?.timestamp || '',
     notes: scene?.notes || '',
     status: scene?.status || 'available',
+    tagIds: (scene?.tags || []).map((t) => t.id),
   });
 
   useEffect(() => {
@@ -38,6 +42,7 @@ export function SceneForm({ scene, defaultPlatform, onSubmit, onCancel }: SceneF
         timestamp: scene.timestamp || '',
         notes: scene.notes || '',
         status: scene.status,
+        tagIds: (scene.tags || []).map((t) => t.id),
       });
     }
   }, [scene]);
@@ -151,6 +156,17 @@ export function SceneForm({ scene, defaultPlatform, onSubmit, onCancel }: SceneF
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">Tags</label>
+              <TagPicker
+                allTags={allTags}
+                selectedTagIds={formData.tagIds || []}
+                onChange={(tagIds) => setFormData({ ...formData, tagIds })}
+                onCreateTag={onCreateTag}
+                placeholder="Type to search tags..."
+              />
             </div>
 
             <div>

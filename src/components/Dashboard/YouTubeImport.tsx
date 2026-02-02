@@ -29,8 +29,13 @@ export function YouTubeImport({ onImport, onCancel, onOpenSettings }: YouTubeImp
     setError('');
     setSuccessMessage('');
 
-    if (!playlistUrl.includes('youtube.com') && !playlistUrl.includes('youtu.be') && !playlistUrl.includes('list=')) {
-      setError('Please enter a valid YouTube playlist URL');
+    const value = String(playlistUrl || '').trim();
+    const looksLikePlaylistId = /^[A-Za-z0-9_-]{10,}$/.test(value) && !value.includes('http') && !value.includes('youtube');
+    const hasListParam = value.includes('list=');
+    const looksLikePlaylistUrl = value.includes('youtube.com/playlist') || value.includes('youtube.com') || value.includes('youtu.be');
+
+    if (!value || (!looksLikePlaylistId && !hasListParam && !looksLikePlaylistUrl)) {
+      setError('Invalid playlist URL');
       return;
     }
 
@@ -105,16 +110,16 @@ export function YouTubeImport({ onImport, onCancel, onOpenSettings }: YouTubeImp
               Playlist URL *
             </label>
             <input
-              type="url"
+              type="text"
               required
               value={playlistUrl}
               onChange={(e) => setPlaylistUrl(e.target.value)}
               className="input"
-              placeholder="https://www.youtube.com/playlist?list=..."
+              placeholder="https://www.youtube.com/playlist?list=... or PLxxxxxxxx"
               disabled={loading}
             />
             <p className="mt-2 text-xs text-zinc-400">
-              Paste the full YouTube playlist URL
+              Paste the playlist URL or just the playlist ID
             </p>
           </div>
 
@@ -172,7 +177,7 @@ export function YouTubeImport({ onImport, onCancel, onOpenSettings }: YouTubeImp
               <li>Paste a YouTube playlist URL (e.g., youtube.com/playlist?list=...)</li>
               <li>Select a category for all videos</li>
               <li>With API key: fetches all metadata, thumbnails, and handles 100+ videos</li>
-              <li>Without API key: imports basic playlist info</li>
+              <li>Without API key: you will be prompted to add one in Settings</li>
             </ul>
           </div>
 

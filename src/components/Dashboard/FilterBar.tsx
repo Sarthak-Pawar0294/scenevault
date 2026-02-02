@@ -1,5 +1,6 @@
 import { Search, Filter, X, Check } from 'lucide-react';
-import { Platform, Category, Status } from '../../types';
+import { Platform, Category, Status, Tag } from '../../types';
+import { TagPicker } from './TagPicker';
 
 type SortOption = 'newest' | 'oldest' | 'title-asc' | 'title-desc';
 type FilterType = 'search' | 'platform' | 'category' | 'status';
@@ -18,6 +19,11 @@ interface FilterBarProps {
   onCategoryChange: (category: Category | 'all') => void;
   selectedStatus: Status | 'all';
   onStatusChange: (status: Status | 'all') => void;
+  allTags: Tag[];
+  selectedTagIds: string[];
+  onSelectedTagIdsChange: (tagIds: string[]) => void;
+  tagMatchMode: 'and' | 'or';
+  onTagMatchModeChange: (mode: 'and' | 'or') => void;
   sortBy: SortOption;
   onSortChange: (sort: SortOption) => void;
   activeFilters: ActiveFilter[];
@@ -31,7 +37,7 @@ interface FilterBarProps {
 
 const platforms: (Platform | 'all')[] = ['all', 'YouTube', 'JioHotstar', 'Zee5', 'SonyLIV', 'Other'];
 const categories: (Category | 'all')[] = ['all', 'F/M', 'F/F', 'M/F', 'M/M'];
-const statuses: (Status | 'all')[] = ['all', 'available', 'unavailable'];
+const statuses: (Status | 'all')[] = ['all', 'available', 'private', 'unavailable'];
 
 const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'newest', label: 'Newest First' },
@@ -64,6 +70,11 @@ export function FilterBar({
   onCategoryChange,
   selectedStatus,
   onStatusChange,
+  allTags,
+  selectedTagIds,
+  onSelectedTagIdsChange,
+  tagMatchMode,
+  onTagMatchModeChange,
   sortBy,
   onSortChange,
   activeFilters,
@@ -164,6 +175,43 @@ export function FilterBar({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="pt-2 border-t border-[var(--bg-tertiary)] space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide">Tags</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={`px-3 py-1 rounded-full text-xs border transition ${
+                tagMatchMode === 'and'
+                  ? 'bg-white/10 text-white border-white/10'
+                  : 'bg-transparent text-[var(--text-secondary)] border-transparent hover:border-[var(--surface-border)]'
+              }`}
+              onClick={() => onTagMatchModeChange('and')}
+            >
+              AND
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1 rounded-full text-xs border transition ${
+                tagMatchMode === 'or'
+                  ? 'bg-white/10 text-white border-white/10'
+                  : 'bg-transparent text-[var(--text-secondary)] border-transparent hover:border-[var(--surface-border)]'
+              }`}
+              onClick={() => onTagMatchModeChange('or')}
+            >
+              OR
+            </button>
+          </div>
+        </div>
+
+        <TagPicker
+          allTags={allTags}
+          selectedTagIds={selectedTagIds}
+          onChange={onSelectedTagIdsChange}
+          placeholder="Filter by tags..."
+        />
       </div>
 
       {activeFilters.length > 0 && (

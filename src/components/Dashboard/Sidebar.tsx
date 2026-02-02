@@ -7,6 +7,7 @@ import {
   PlaySquare,
   Monitor,
   Grid,
+  Tag as TagIcon,
   Settings,
   User as UserIcon,
   LogOut,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react';
 import { Platform } from '../../types';
 
-export type SidebarSection = 'all' | Platform | 'profile';
+export type SidebarSection = 'all' | Platform | 'profile' | 'tags';
 
 interface SidebarProps {
   active: SidebarSection;
@@ -38,6 +39,7 @@ export function Sidebar({ active, onNavigate, onOpenSettings, open, onOpenChange
         { id: 'Zee5' as const, label: 'Zee5', icon: <PlaySquare className="w-5 h-5" /> },
         { id: 'SonyLIV' as const, label: 'SonyLIV', icon: <Monitor className="w-5 h-5" /> },
         { id: 'Other' as const, label: 'Other', icon: <Grid className="w-5 h-5" /> },
+        { id: 'tags' as const, label: 'Tags', icon: <TagIcon className="w-5 h-5" /> },
       ],
     []
   );

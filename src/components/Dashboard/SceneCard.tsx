@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Scene } from '../../types';
-import { MoreVertical, CheckCircle, XCircle, Loader2, Check, ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { MoreVertical, CheckCircle, XCircle, Loader2, Check, ExternalLink, Pencil, Trash2, Lock } from 'lucide-react';
 
 interface SceneCardProps {
   scene: Scene;
@@ -15,12 +15,18 @@ interface SceneCardProps {
 export function SceneCard({ scene, onEdit, onDelete, onCheckStatus, onViewDetails, isSelected, onSelect }: SceneCardProps) {
   const [isChecking, setIsChecking] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const normalizedStatus = scene.status === 'available' ? 'available' : 'unavailable';
+  const [isHoveringThumb, setIsHoveringThumb] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const normalizedStatus = scene.status === 'available' ? 'available' : (scene.status === 'private' ? 'private' : 'unavailable');
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const statusIcons = {
     available: <CheckCircle className="w-4 h-4 text-green-500" />,
     unavailable: <XCircle className="w-4 h-4 text-red-500" />,
+    private: <Lock className="w-4 h-4 text-amber-400" />,
   };
 
   const handleCheckStatus = async () => {
@@ -55,6 +61,36 @@ export function SceneCard({ scene, onEdit, onDelete, onCheckStatus, onViewDetail
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (showVideo && videoRef.current) {
+      videoRef.current.play().catch(() => {
+        // Autoplay may be blocked; fallback to static image
+        setShowVideo(false);
+      });
+    }
+  }, [showVideo]);
+
+  const handleThumbMouseEnter = () => {
+    setIsHoveringThumb(true);
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (scene.url && scene.url.includes('youtube.com')) {
+        setVideoLoading(true);
+        setShowVideo(true);
+        setVideoLoading(false);
+      }
+    }, 500);
+  };
+
+  const handleThumbMouseLeave = () => {
+    setIsHoveringThumb(false);
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setShowVideo(false);
+    setVideoLoading(false);
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     if (onSelect && e.currentTarget === e.target) {
       e.stopPropagation();
@@ -77,6 +113,9 @@ export function SceneCard({ scene, onEdit, onDelete, onCheckStatus, onViewDetail
   };
 
   const durationLabel = getDurationLabel();
+
+  const tagBadges = Array.isArray(scene.tags) ? scene.tags.slice(0, 4) : [];
+  const overflowCount = Array.isArray(scene.tags) && scene.tags.length > 4 ? scene.tags.length - 4 : 0;
 
   const handleViewOnPlatform = () => {
     if (!scene.url) return;
@@ -106,16 +145,40 @@ export function SceneCard({ scene, onEdit, onDelete, onCheckStatus, onViewDetail
       )}
 
       <div className="relative">
-        <div className="relative w-full aspect-video overflow-hidden rounded-t-[12px] bg-[var(--bg-tertiary)]">
-          {scene.thumbnail ? (
-            <img
-              src={scene.thumbnail}
-              alt={scene.title}
+        <div
+          className="relative w-full aspect-video overflow-hidden rounded-t-[12px] bg-[var(--bg-tertiary)]"
+          onMouseEnter={handleThumbMouseEnter}
+          onMouseLeave={handleThumbMouseLeave}
+        >
+          {showVideo && scene.url && scene.url.includes('youtube.com') ? (
+            <video
+              ref={videoRef}
               className="w-full h-full object-cover"
-              loading="lazy"
+              muted
+              playsInline
+              loop
+              src={scene.url.replace('watch?v=', 'embed/')}
+              onLoadStart={() => setVideoLoading(false)}
             />
           ) : (
-            <div className="w-full h-full bg-[var(--bg-tertiary)]" />
+            <>
+              {scene.thumbnail ? (
+                <img
+                  src={scene.thumbnail}
+                  alt={scene.title}
+                  className="w-full h-full object-cover transition-opacity duration-300"
+                  loading="lazy"
+                  style={{ opacity: videoLoading ? 0.5 : 1 }}
+                />
+              ) : (
+                <div className="w-full h-full bg-[var(--bg-tertiary)]" />
+              )}
+              {isHoveringThumb && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <div className="text-white text-xs font-medium">Preview</div>
+                </div>
+              )}
+            </>
           )}
 
           {durationLabel && (
@@ -214,10 +277,40 @@ export function SceneCard({ scene, onEdit, onDelete, onCheckStatus, onViewDetail
           </span>
         </div>
 
+        {tagBadges.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {tagBadges.map((t) => (
+              <span
+                key={t.id}
+                className="inline-block text-[11px] px-2 py-1 rounded-full border"
+                style={{
+                  background: `${(t.color || '#64748b')}22`,
+                  borderColor: `${(t.color || '#64748b')}44`,
+                  color: t.color || '#cbd5e1',
+                }}
+              >
+                {t.name}
+              </span>
+            ))}
+            {overflowCount > 0 && (
+              <span className="inline-block text-[11px] px-2 py-1 rounded-full bg-white/10 text-white border border-white/10">
+                +{overflowCount}
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="text-[13px] text-[var(--text-secondary)]">
           <span>{scene.platform}</span>
           <span className="mx-2">•</span>
-          <span style={{ color: normalizedStatus === 'available' ? 'var(--status-available)' : 'var(--status-unavailable)' }}>
+          <span
+            style={{
+              color:
+                normalizedStatus === 'available'
+                  ? 'var(--status-available)'
+                  : (normalizedStatus === 'private' ? '#fbbf24' : 'var(--status-unavailable)'),
+            }}
+          >
             {normalizedStatus}
           </span>
         </div>

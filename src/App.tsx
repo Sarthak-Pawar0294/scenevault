@@ -1,9 +1,18 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { Login } from './components/Auth/Login';
 import { Signup } from './components/Auth/Signup';
-import { Dashboard } from './components/Dashboard/Dashboard';
-import { Loader } from 'lucide-react';
+import { SceneGridSkeleton } from './components/Dashboard/Skeletons';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { AppLayout } from './components/layout/AppLayout';
+import { AllScenesPage } from './pages/AllScenesPage';
+import { PlatformPage } from './pages/PlatformPage';
+import { YouTubePlaylistDetailPage } from './pages/YouTubePlaylistDetailPage';
+import { TagsPage } from './pages/TagsPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { SettingsPage } from './pages/SettingsPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -11,21 +20,42 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
-        <Loader className="w-8 h-8 text-[var(--accent-red)] animate-spin" />
+      <div className="min-h-screen bg-[var(--app-bg)] flex items-center justify-center p-6">
+        <div className="w-full max-w-6xl">
+          <SceneGridSkeleton count={12} />
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return showSignup ? (
-      <Signup onToggle={() => setShowSignup(false)} />
+      <ErrorBoundary>
+        <Signup onToggle={() => setShowSignup(false)} />
+      </ErrorBoundary>
     ) : (
-      <Login onToggle={() => setShowSignup(true)} />
+      <ErrorBoundary>
+        <Login onToggle={() => setShowSignup(true)} />
+      </ErrorBoundary>
     );
   }
 
-  return <Dashboard />;
+  return (
+    <ErrorBoundary>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route index element={<Navigate to="/all-scenes" replace />} />
+          <Route path="/all-scenes" element={<AllScenesPage />} />
+          <Route path="/platforms/:platform" element={<PlatformPage />} />
+          <Route path="/platforms/youtube/playlist/:id" element={<YouTubePlaylistDetailPage />} />
+          <Route path="/tags" element={<TagsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </ErrorBoundary>
+  );
 }
 
 function App() {

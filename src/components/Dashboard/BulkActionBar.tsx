@@ -1,9 +1,10 @@
-import { Tag, AlertCircle, Trash2, Download } from 'lucide-react';
+import { Tag, AlertCircle, Trash2, Download, Tags } from 'lucide-react';
 
 interface BulkActionBarProps {
   selectedCount: number;
   onChangeCategory: () => void;
   onChangeStatus: () => void;
+  onBulkTags: () => void;
   onDelete: () => void;
   onExport: () => void;
   onClearSelection: () => void;
@@ -13,6 +14,7 @@ export function BulkActionBar({
   selectedCount,
   onChangeCategory,
   onChangeStatus,
+  onBulkTags,
   onDelete,
   onExport,
   onClearSelection,
@@ -52,6 +54,15 @@ export function BulkActionBar({
             >
               <AlertCircle className="w-4 h-4" />
               <span>Mark as Unavailable</span>
+            </button>
+
+            <button
+              onClick={onBulkTags}
+              className="flex items-center space-x-2 px-3 py-2 rounded hover:bg-zinc-800 transition text-sm text-zinc-300 hover:text-white"
+              title="Add/remove/replace tags for selected"
+            >
+              <Tags className="w-4 h-4" />
+              <span>Tags</span>
             </button>
 
             <button

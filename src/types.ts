@@ -1,8 +1,22 @@
 export type Platform = 'YouTube' | 'JioHotstar' | 'Zee5' | 'SonyLIV' | 'Other';
 export type Category = 'F/M' | 'F/F' | 'M/F' | 'M/M';
-export type Status = 'available' | 'unavailable';
+export type Status = 'available' | 'unavailable' | 'private';
 export type SortOption = 'newest' | 'oldest' | 'title-asc' | 'title-desc';
 export type SourceType = 'manual' | 'youtube_playlist';
+
+export interface Tag {
+  id: string;
+  user_id?: string | null;
+  name: string;
+  color?: string | null;
+  created_at?: string;
+}
+
+export interface SceneTag {
+  scene_id: string;
+  tag_id: string;
+  created_at?: string;
+}
 
 export interface Scene {
   id: string;
@@ -10,6 +24,7 @@ export interface Scene {
   title: string;
   platform: Platform;
   category: Category;
+  tags?: Tag[];
   url?: string;
   thumbnail?: string;
   timestamp?: string;
@@ -33,6 +48,7 @@ export interface SceneFormData {
   timestamp?: string;
   notes?: string;
   status: Status;
+  tagIds?: string[];
 }
 
 export interface YouTubePlaylist {
@@ -45,6 +61,27 @@ export interface YouTubePlaylist {
   video_count: number;
   imported_at: string;
   updated_at: string;
+}
+
+export interface Playlist {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string;
+  thumbnail_url?: string;
+  is_youtube_import: boolean;
+  created_at: string;
+}
+
+export interface PlaylistScene {
+  id: string;
+  playlist_id: string;
+  scene_id: string;
+  position: number;
+}
+
+export interface PlaylistSceneRow extends PlaylistScene {
+  scene: Scene;
 }
 
 export interface Stats {
