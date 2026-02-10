@@ -99,6 +99,12 @@ export const youtubeService = {
     apiKey: string,
     userId: string
   ): Promise<{ playlistTitle: string; addedCount: number }> {
+    const chunk = <T,>(arr: T[], size: number) => {
+      const out: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    };
+
     const raw = String(playlistUrlOrId || '').trim();
     if (!raw) throw new Error('Invalid playlist URL');
     if (!apiKey) throw new Error('Please add YouTube API key in Settings');
@@ -226,10 +232,6 @@ export const youtubeService = {
       allItems.push(...items);
       pageToken = data.nextPageToken || null;
       hasMore = pageToken !== null;
-
-      if (allItems.length > 500) {
-        throw new Error('Playlist is too large (500+ videos). Please select a smaller playlist.');
-      }
     }
 
     if (allItems.length === 0) {
@@ -252,7 +254,7 @@ export const youtubeService = {
       .eq('user_id', userId)
       .eq('platform', 'YouTube')
       .eq('playlist_id', playlistId)
-      .not('video_id', 'is', 'null');
+      .not('video_id', 'is', null);
 
     let existingVideoIds = new Set<string>();
     {
@@ -290,8 +292,13 @@ export const youtubeService = {
       }));
 
     if (scenesToInsert.length > 0) {
-      const { error } = await supabase.from('scenes').insert(scenesToInsert).select();
-      if (error) {
+      const batches = chunk(scenesToInsert, 200);
+
+      for (let i = 0; i < batches.length; i += 1) {
+        const batch = batches[i];
+        const { error } = await supabase.from('scenes').insert(batch).select();
+        if (!error) continue;
+
         const message = String((error as any)?.message || '');
         const details = (error as any)?.details;
         const hint = (error as any)?.hint;
@@ -302,26 +309,30 @@ export const youtubeService = {
           details,
           hint,
           code,
-          firstRow: scenesToInsert[0],
-          count: scenesToInsert.length,
+          firstRow: batch[0],
+          count: batch.length,
+          batchIndex: i,
+          batchCount: batches.length,
         });
 
         const looksLikeMissingColumn =
           code === '42703' || message.toLowerCase().includes('column') || message.toLowerCase().includes('does not exist');
         if (!looksLikeMissingColumn) throw error;
 
-        const fallbackScenesToInsert = scenesToInsert.map((s) => {
+        const fallbackBatch = batch.map((s) => {
           const { video_id, channel_name, upload_date, ...rest } = s as any;
           return rest;
         });
 
         console.warn('[YouTube Import] Retrying scenes insert without YouTube metadata columns:', {
           removedFields: ['video_id', 'channel_name', 'upload_date'],
-          firstRow: fallbackScenesToInsert[0],
-          count: fallbackScenesToInsert.length,
+          firstRow: fallbackBatch[0],
+          count: fallbackBatch.length,
+          batchIndex: i,
+          batchCount: batches.length,
         });
 
-        const { error: retryErr } = await supabase.from('scenes').insert(fallbackScenesToInsert).select();
+        const { error: retryErr } = await supabase.from('scenes').insert(fallbackBatch).select();
         if (retryErr) {
           console.error('[YouTube Import] Scenes insert retry failed:', {
             message: (retryErr as any)?.message,

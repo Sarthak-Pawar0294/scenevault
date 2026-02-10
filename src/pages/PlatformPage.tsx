@@ -573,7 +573,7 @@ export function PlatformPage() {
         .eq('user_id', authUser.id)
         .eq('platform', 'YouTube')
         .eq('playlist_id', playlistId)
-        .not('video_id', 'is', 'null');
+        .not('video_id', 'is', null);
       if (existingErr) throw existingErr;
 
       const existingRows = (existingScenes || []) as any[];
