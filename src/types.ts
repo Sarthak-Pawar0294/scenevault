@@ -59,6 +59,7 @@ export interface YouTubePlaylist {
   description?: string;
   thumbnail?: string;
   video_count: number;
+  default_category?: Category;
   imported_at: string;
   last_checked?: string;
   updated_at: string;

@@ -18,6 +18,7 @@ import { SceneGridSkeleton, PlaylistGridSkeleton } from '../components/Dashboard
 import { CheckAllVideosModal } from '../components/Dashboard/CheckAllVideosModal';
 import { RefreshPlaylistModal } from '../components/Dashboard/RefreshPlaylistModal';
 import { YouTubeImport } from '../components/Dashboard/YouTubeImport';
+import { ThreeDotMenu } from '../components/ui/ThreeDotMenu';
 import { useAuth } from '../contexts/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { sceneService, sceneTagsService, tagService, youtubeService } from '../services';
@@ -125,6 +126,26 @@ export function PlatformPage() {
   const [refreshingPlaylistId, setRefreshingPlaylistId] = useState<string | null>(null);
   const cancelRefreshRef = useRef(false);
 
+  const [youtubeStats, setYoutubeStats] = useState<{
+    total: number;
+    available: number;
+    unavailable: number;
+    playlists: number;
+  } | null>(null);
+
+  const [playlistEditOpen, setPlaylistEditOpen] = useState(false);
+  const [playlistEditTarget, setPlaylistEditTarget] = useState<YouTubePlaylist | null>(null);
+  const [playlistEditTitle, setPlaylistEditTitle] = useState('');
+  const [playlistEditCategory, setPlaylistEditCategory] = useState<Category>('F/M');
+  const [playlistEditSaving, setPlaylistEditSaving] = useState(false);
+
+  const [playlistDeleteOpen, setPlaylistDeleteOpen] = useState(false);
+  const [playlistDeleteTargets, setPlaylistDeleteTargets] = useState<YouTubePlaylist[]>([]);
+  const [playlistDeleteWorking, setPlaylistDeleteWorking] = useState(false);
+
+  const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<Set<string>>(new Set());
+  const [selectionBarAnimateIn, setSelectionBarAnimateIn] = useState(false);
+
   const isYouTube = (platform || '').toLowerCase() === 'youtube';
   const description = isYouTube
     ? 'Playlists and saved video scenes'
@@ -151,9 +172,64 @@ export function PlatformPage() {
     }
   }, [isYouTube, platformType, user?.id]);
 
+  const loadYouTubeStats = useCallback(async () => {
+    if (!user?.id) return;
+    if (!isYouTube) {
+      setYoutubeStats(null);
+      return;
+    }
+
+    const userId = user.id;
+
+    try {
+      const [{ count: totalCount, error: totalErr }, { count: availableCount, error: availErr }, { count: unavailableCount, error: unavailErr }, { count: playlistCount, error: playlistErr }] =
+        await Promise.all([
+          supabase
+            .from('scenes')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('platform', 'YouTube'),
+          supabase
+            .from('scenes')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('platform', 'YouTube')
+            .eq('status', 'available'),
+          supabase
+            .from('scenes')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('platform', 'YouTube')
+            .in('status', ['unavailable', 'private']),
+          supabase
+            .from('youtube_playlists')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId),
+        ]);
+
+      if (totalErr) throw totalErr;
+      if (availErr) throw availErr;
+      if (unavailErr) throw unavailErr;
+      if (playlistErr) throw playlistErr;
+
+      setYoutubeStats({
+        total: totalCount || 0,
+        available: availableCount || 0,
+        unavailable: unavailableCount || 0,
+        playlists: playlistCount || 0,
+      });
+    } catch {
+      setYoutubeStats(null);
+    }
+  }, [isYouTube, user?.id]);
+
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    void loadYouTubeStats();
+  }, [loadYouTubeStats]);
 
   useEffect(() => {
     setSelectedYouTubePlaylistId(null);
@@ -300,6 +376,158 @@ export function PlatformPage() {
       extraValue,
     };
   }, [isYouTube, platformScenes, playlistsForCards.length]);
+
+  const effectiveStats = useMemo(() => {
+    if (!isYouTube || !youtubeStats) return stats;
+    return {
+      total: youtubeStats.total,
+      available: youtubeStats.available,
+      unavailable: youtubeStats.unavailable,
+      extraValue: youtubeStats.playlists,
+    };
+  }, [isYouTube, stats, youtubeStats]);
+
+  const openEditPlaylist = (playlistId: string) => {
+    const meta = youtubePlaylists.find((x) => x.playlist_id === playlistId) || null;
+    if (!meta) {
+      alert('Playlist details are not available yet. Refresh/import the playlist first.');
+      return;
+    }
+    setPlaylistEditTarget(meta);
+    setPlaylistEditTitle(meta.title || '');
+    setPlaylistEditCategory((meta.default_category as Category) || 'F/M');
+    setPlaylistEditOpen(true);
+  };
+
+  const saveEditPlaylist = async () => {
+    if (!user?.id) return;
+    if (!playlistEditTarget) return;
+    if (playlistEditSaving) return;
+
+    const nextTitle = playlistEditTitle.trim();
+    if (!nextTitle) {
+      alert('Playlist name cannot be empty.');
+      return;
+    }
+
+    setPlaylistEditSaving(true);
+    try {
+      const { error: upErr } = await supabase
+        .from('youtube_playlists')
+        .update({
+          title: nextTitle,
+          default_category: playlistEditCategory,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id)
+        .eq('playlist_id', playlistEditTarget.playlist_id);
+      if (upErr) throw upErr;
+
+      setPlaylistEditOpen(false);
+      setPlaylistEditTarget(null);
+      await loadData();
+      await loadYouTubeStats();
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update playlist');
+    } finally {
+      setPlaylistEditSaving(false);
+    }
+  };
+
+  const openDeletePlaylists = (playlistIds: string[]) => {
+    const metas = playlistIds
+      .map((id) => youtubePlaylists.find((x) => x.playlist_id === id) || null)
+      .filter((x): x is YouTubePlaylist => !!x);
+
+    if (metas.length === 0) {
+      alert('Playlist details are not available yet. Refresh/import the playlist first.');
+      return;
+    }
+
+    setPlaylistDeleteTargets(metas);
+    setPlaylistDeleteOpen(true);
+  };
+
+  const openDeletePlaylist = (playlistId: string) => {
+    openDeletePlaylists([playlistId]);
+  };
+
+  const confirmDeletePlaylists = async (mode: 'keep_videos' | 'delete_all') => {
+    if (!user?.id) return;
+    if (playlistDeleteTargets.length === 0) return;
+    if (playlistDeleteWorking) return;
+
+    setPlaylistDeleteWorking(true);
+    const playlistIds = playlistDeleteTargets.map((p) => p.playlist_id);
+    const playlistNames = playlistDeleteTargets.map((p) => p.title).filter(Boolean);
+
+    try {
+      if (mode === 'delete_all') {
+        const { error: sceneErr } = await supabase
+          .from('scenes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('platform', 'YouTube')
+          .in('playlist_id', playlistIds);
+        if (sceneErr) throw sceneErr;
+      } else {
+        const { error: sceneErr } = await supabase
+          .from('scenes')
+          .update({
+            playlist_id: null,
+            source_type: 'manual',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', user.id)
+          .eq('platform', 'YouTube')
+          .in('playlist_id', playlistIds);
+        if (sceneErr) throw sceneErr;
+      }
+
+      const { error: plErr } = await supabase
+        .from('youtube_playlists')
+        .delete()
+        .eq('user_id', user.id)
+        .in('playlist_id', playlistIds);
+      if (plErr) throw plErr;
+
+      setPlaylistDeleteOpen(false);
+      setPlaylistDeleteTargets([]);
+      setSelectedPlaylistIds(new Set());
+
+      await loadData();
+      await loadYouTubeStats();
+
+      alert(
+        mode === 'delete_all'
+          ? `Deleted ${playlistIds.length} playlist(s) and all their videos.${playlistNames.length ? `\n${playlistNames.join('\n')}` : ''}`
+          : `Deleted ${playlistIds.length} playlist(s). Videos were moved to Individual Videos.${playlistNames.length ? `\n${playlistNames.join('\n')}` : ''}`
+      );
+    } catch (e: any) {
+      alert(e?.message || 'Failed to delete playlist');
+    } finally {
+      setPlaylistDeleteWorking(false);
+    }
+  };
+
+  const togglePlaylistSelection = (playlistId: string, checked: boolean) => {
+    setSelectedPlaylistIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(playlistId);
+      else next.delete(playlistId);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (selectedPlaylistIds.size === 0) {
+      setSelectionBarAnimateIn(false);
+      return;
+    }
+
+    const raf = requestAnimationFrame(() => setSelectionBarAnimateIn(true));
+    return () => cancelAnimationFrame(raf);
+  }, [selectedPlaylistIds.size]);
 
   const handleOpenAdd = () => {
     setEditingScene(undefined);
@@ -745,12 +973,165 @@ export function PlatformPage() {
         }
       />
 
+      {playlistEditOpen && playlistEditTarget && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => {
+              if (playlistEditSaving) return;
+              setPlaylistEditOpen(false);
+              setPlaylistEditTarget(null);
+            }}
+            role="button"
+            tabIndex={-1}
+          />
+
+          <div className="relative w-full max-w-lg rounded-[16px] border border-[var(--bg-tertiary)] bg-[var(--bg-secondary)] shadow-[0_20px_60px_rgba(0,0,0,0.55)] overflow-hidden">
+            <div className="p-5 border-b border-[var(--bg-tertiary)] flex items-center justify-between">
+              <div className="text-white font-semibold">Edit Playlist</div>
+              <button
+                type="button"
+                className="p-2 rounded-[12px] text-[var(--text-secondary)] hover:text-white hover:bg-black/20 transition disabled:opacity-50"
+                onClick={() => {
+                  if (playlistEditSaving) return;
+                  setPlaylistEditOpen(false);
+                  setPlaylistEditTarget(null);
+                }}
+                aria-label="Close"
+                disabled={playlistEditSaving}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Playlist name</label>
+                <input
+                  value={playlistEditTitle}
+                  onChange={(e) => setPlaylistEditTitle(e.target.value)}
+                  className="input w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Default category</label>
+                <select
+                  value={playlistEditCategory}
+                  onChange={(e) => setPlaylistEditCategory(e.target.value as Category)}
+                  className="input w-full"
+                >
+                  <option value="F/M">F/M</option>
+                  <option value="F/F">F/F</option>
+                  <option value="M/F">M/F</option>
+                  <option value="M/M">M/M</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-[12px] bg-[rgba(255,255,255,0.06)] text-white border border-[rgba(255,255,255,0.10)] hover:bg-black/20 transition disabled:opacity-50"
+                  onClick={() => {
+                    if (playlistEditSaving) return;
+                    setPlaylistEditOpen(false);
+                    setPlaylistEditTarget(null);
+                  }}
+                  disabled={playlistEditSaving}
+                >
+                  Cancel
+                </button>
+                <button type="button" className="btn-primary disabled:opacity-50" onClick={() => void saveEditPlaylist()} disabled={playlistEditSaving}>
+                  {playlistEditSaving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {playlistDeleteOpen && playlistDeleteTargets.length > 0 && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => {
+              if (playlistDeleteWorking) return;
+              setPlaylistDeleteOpen(false);
+              setPlaylistDeleteTargets([]);
+            }}
+            role="button"
+            tabIndex={-1}
+          />
+
+          <div className="relative w-full max-w-lg rounded-[16px] border border-[var(--bg-tertiary)] bg-[var(--bg-secondary)] shadow-[0_20px_60px_rgba(0,0,0,0.55)] overflow-hidden">
+            <div className="p-5 border-b border-[var(--bg-tertiary)] flex items-center justify-between">
+              <div className="text-white font-semibold">Delete Playlist</div>
+              <button
+                type="button"
+                className="p-2 rounded-[12px] text-[var(--text-secondary)] hover:text-white hover:bg-black/20 transition disabled:opacity-50"
+                onClick={() => {
+                  if (playlistDeleteWorking) return;
+                  setPlaylistDeleteOpen(false);
+                  setPlaylistDeleteTargets([]);
+                }}
+                aria-label="Close"
+                disabled={playlistDeleteWorking}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="text-sm text-[var(--text-secondary)] whitespace-pre-line">
+                {playlistDeleteTargets.length === 1
+                  ? `Delete ${playlistDeleteTargets[0].title}? Choose an option:`
+                  : `Delete ${playlistDeleteTargets.length} playlists? Choose an option:`}
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="w-full px-4 py-3 rounded-[12px] bg-[rgba(255,255,255,0.06)] text-white border border-[rgba(255,255,255,0.10)] hover:bg-black/20 transition disabled:opacity-50 text-left"
+                  onClick={() => void confirmDeletePlaylists('keep_videos')}
+                  disabled={playlistDeleteWorking}
+                >
+                  Keep videos in Individual Videos
+                </button>
+                <button
+                  type="button"
+                  className="w-full px-4 py-3 rounded-[12px] bg-[rgba(239,68,68,0.12)] text-[#ef4444] border border-[rgba(239,68,68,0.30)] hover:bg-[rgba(239,68,68,0.18)] transition disabled:opacity-50 text-left"
+                  onClick={() => void confirmDeletePlaylists('delete_all')}
+                  disabled={playlistDeleteWorking}
+                >
+                  Delete playlist AND all its videos
+                </button>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-[12px] bg-[rgba(255,255,255,0.06)] text-white border border-[rgba(255,255,255,0.10)] hover:bg-black/20 transition disabled:opacity-50"
+                  onClick={() => {
+                    if (playlistDeleteWorking) return;
+                    setPlaylistDeleteOpen(false);
+                    setPlaylistDeleteTargets([]);
+                  }}
+                  disabled={playlistDeleteWorking}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <StatsBar
-        total={stats.total}
-        available={stats.available}
-        unavailable={stats.unavailable}
+        total={effectiveStats.total}
+        available={effectiveStats.available}
+        unavailable={effectiveStats.unavailable}
         extraLabel={isYouTube ? 'Playlists' : 'Categories'}
-        extraValue={stats.extraValue}
+        extraValue={effectiveStats.extraValue}
         extraIcon={platformIcon(platform)}
       />
 
@@ -800,37 +1181,80 @@ export function PlatformPage() {
             </button>
 
             {playlistsForCards.map((p) => (
-              <button
+              <div
                 key={p.playlist_id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   setSelectedYouTubePlaylistId(p.playlist_id);
                 }}
-                className="card p-5 text-left hover:shadow-[0_18px_40px_rgba(0,0,0,0.55)] transition relative group"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedYouTubePlaylistId(p.playlist_id);
+                  }
+                }}
+                className="card p-5 text-left hover:shadow-[0_18px_40px_rgba(0,0,0,0.55)] transition relative group cursor-pointer"
               >
-                {p.hasMeta && (
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div
-                      role="button"
-                      tabIndex={-1}
-                      aria-label="Refresh playlist"
-                      title="Refresh Playlist"
-                      className="w-9 h-9 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/80 border border-white/10"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (refreshing) return;
-                        void handleRefreshPlaylist(p.playlist_id, p.title);
-                      }}
-                    >
-                      {refreshing && refreshingPlaylistId === p.playlist_id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4" />
-                      )}
-                    </div>
-                  </div>
-                )}
+                <div className="absolute top-3 left-3 z-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedPlaylistIds.has(p.playlist_id)}
+                    disabled={!p.hasMeta}
+                    onChange={(e) => togglePlaylistSelection(p.playlist_id, e.target.checked)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className="w-5 h-5 accent-[#ef4444]"
+                    aria-label="Select playlist"
+                  />
+                </div>
+
+                <div className="absolute top-3 right-3">
+                  <ThreeDotMenu
+                    buttonAriaLabel="Playlist menu"
+                    items={[
+                      {
+                        label: '🔄 Refresh Playlist',
+                        onClick: () => {
+                          if (refreshing) return;
+                          void handleRefreshPlaylist(p.playlist_id, p.title);
+                        },
+                        disabled: refreshing,
+                      },
+                      {
+                        label: 'ℹ️ View Details',
+                        onClick: () => {
+                          const meta = youtubePlaylists.find((x) => x.playlist_id === p.playlist_id) || null;
+                          const lastChecked = meta?.last_checked ? new Date(meta.last_checked).toLocaleString() : 'Never';
+                          const category = meta?.default_category || 'Not set';
+                          alert(
+                            [
+                              `Playlist name: ${p.title}`,
+                              `Video count: ${p.video_count}`,
+                              `Last checked: ${lastChecked}`,
+                              `Category: ${category}`,
+                              `YouTube playlist ID: ${p.playlist_id}`,
+                            ].join('\n')
+                          );
+                        },
+                      },
+                      {
+                        label: '✏️ Edit Playlist',
+                        onClick: () => openEditPlaylist(p.playlist_id),
+                      },
+                      { type: 'divider' },
+                      {
+                        label: '🗑️ Delete Playlist',
+                        onClick: () => openDeletePlaylist(p.playlist_id),
+                        danger: true,
+                      },
+                    ]}
+                  />
+                </div>
 
                 <div className="w-full aspect-video rounded-[12px] bg-[var(--bg-tertiary)] border border-[var(--bg-tertiary)] overflow-hidden mb-4">
                   {p.thumbnail ? (
@@ -843,9 +1267,45 @@ export function PlatformPage() {
                 </div>
                 <div className="text-white font-bold line-clamp-2">{p.title}</div>
                 <div className="text-sm text-[var(--text-secondary)] mt-1">{p.video_count} video(s)</div>
-              </button>
+              </div>
             ))}
           </div>
+
+          {selectedPlaylistIds.size > 0 && (
+            <div
+              className="fixed left-0 right-0 bottom-0 z-[1100] px-4 pb-4 transition-all duration-200"
+              style={{
+                transform: selectionBarAnimateIn ? 'translateY(0px)' : 'translateY(24px)',
+                opacity: selectionBarAnimateIn ? 1 : 0,
+              }}
+            >
+              <div className="max-w-6xl mx-auto rounded-[16px] border border-[rgba(239,68,68,0.35)] bg-[#111122] shadow-[0_18px_40px_rgba(0,0,0,0.65)] overflow-hidden">
+                <div className="h-1" style={{ background: '#ef4444' }} />
+                <div className="p-4 flex items-center justify-between gap-3">
+                  <div className="text-white font-semibold">{selectedPlaylistIds.size} playlists selected</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded-[12px] bg-[rgba(239,68,68,0.14)] text-[#ef4444] border border-[rgba(239,68,68,0.35)] hover:bg-[rgba(239,68,68,0.20)] transition"
+                      onClick={() => {
+                        const ids = Array.from(selectedPlaylistIds);
+                        openDeletePlaylists(ids);
+                      }}
+                    >
+                      Delete Selected
+                    </button>
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded-[12px] bg-[rgba(255,255,255,0.06)] text-white border border-[rgba(255,255,255,0.10)] hover:bg-black/20 transition"
+                      onClick={() => setSelectedPlaylistIds(new Set())}
+                    >
+                      Cancel Selection
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {playlistsForCards.length === 0 && (
             <EmptyState

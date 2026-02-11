@@ -48,6 +48,13 @@ export function AllScenesPage() {
   const [checkError, setCheckError] = useState<string | null>(null);
   const cancelCheckRef = useRef(false);
 
+  const [exactStats, setExactStats] = useState<{
+    total: number;
+    available: number;
+    unavailable: number;
+    platforms: number;
+  } | null>(null);
+
   const loadData = useCallback(async () => {
     if (!user?.id) return;
 
@@ -71,7 +78,57 @@ export function AllScenesPage() {
     void loadData();
   }, [loadData]);
 
+  const loadExactStats = useCallback(async () => {
+    if (!user?.id) return;
+    const userId = user.id;
+
+    try {
+      const [{ count: totalCount, error: totalErr }, { count: availableCount, error: availErr }, { count: unavailableCount, error: unavailErr }] =
+        await Promise.all([
+          supabase.from('scenes').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+          supabase
+            .from('scenes')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('status', 'available'),
+          supabase
+            .from('scenes')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .in('status', ['unavailable', 'private']),
+        ]);
+
+      if (totalErr) throw totalErr;
+      if (availErr) throw availErr;
+      if (unavailErr) throw unavailErr;
+
+      let platforms = new Set(scenes.map((s) => s.platform)).size;
+      try {
+        const { data: platformsCount, error: platformsErr } = await supabase.rpc('count_distinct_scene_platforms', { p_user_id: userId });
+        if (!platformsErr && typeof platformsCount === 'number') {
+          platforms = platformsCount;
+        }
+      } catch {
+        void 0;
+      }
+
+      setExactStats({
+        total: totalCount || 0,
+        available: availableCount || 0,
+        unavailable: unavailableCount || 0,
+        platforms,
+      });
+    } catch {
+      setExactStats(null);
+    }
+  }, [scenes, user?.id]);
+
+  useEffect(() => {
+    void loadExactStats();
+  }, [loadExactStats]);
+
   const stats = useMemo(() => {
+    if (exactStats) return exactStats;
     const available = scenes.filter((s) => s.status === 'available').length;
     const unavailable = scenes.filter((s) => s.status === 'unavailable' || s.status === 'private').length;
     const platforms = new Set(scenes.map((s) => s.platform)).size;
@@ -81,7 +138,7 @@ export function AllScenesPage() {
       unavailable,
       platforms,
     };
-  }, [scenes]);
+  }, [exactStats, scenes]);
 
   const filteredScenes = useMemo(() => {
     let filtered = [...scenes];
@@ -187,6 +244,7 @@ export function AllScenesPage() {
 
     await sceneTagsService.replaceTagsForScene(created.id, tagIds || []);
     await loadData();
+    await loadExactStats();
   };
 
   const handleCancelCheckAll = () => {
@@ -245,6 +303,7 @@ export function AllScenesPage() {
       }
 
       await loadData();
+      await loadExactStats();
       setCheckingAll(false);
     } catch (e: any) {
       setCheckingAll(false);
@@ -264,6 +323,7 @@ export function AllScenesPage() {
 
     await sceneTagsService.replaceTagsForScene(editingScene.id, tagIds || []);
     await loadData();
+    await loadExactStats();
   };
 
   const handleDeleteScene = async (id: string) => {
@@ -271,6 +331,7 @@ export function AllScenesPage() {
     try {
       await sceneService.deleteScene(id);
       await loadData();
+      await loadExactStats();
     } catch (e: any) {
       alert(e?.message || 'Failed to delete scene');
     }
@@ -286,6 +347,7 @@ export function AllScenesPage() {
       updated_at: new Date().toISOString(),
     });
     await loadData();
+    await loadExactStats();
   };
 
   return (
@@ -409,6 +471,7 @@ export function AllScenesPage() {
               updated_at: new Date().toISOString(),
             } as any);
             await loadData();
+            await loadExactStats();
             setDetailScene((prev) => (prev && prev.id === scene.id ? { ...prev, ...data, updated_at: new Date().toISOString() } as any : prev));
           }}
         />
