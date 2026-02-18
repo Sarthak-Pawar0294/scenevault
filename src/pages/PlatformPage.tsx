@@ -843,7 +843,12 @@ export function PlatformPage() {
           if (!vid) return null;
           const pos = youtubeVideoPositionMap.get(vid);
           if (pos === undefined) return null;
-          return { id: String(s?.id || '').trim(), playlist_position: pos, updated_at: new Date().toISOString() };
+          return {
+            id: String(s?.id || '').trim(),
+            user_id: authUser.id,
+            playlist_position: pos,
+            updated_at: new Date().toISOString(),
+          };
         })
         .filter((x: any) => !!x && !!x.id);
 
