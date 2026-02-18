@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Calendar, Loader2, Mail, Trash2, User } from 'lucide-react';
 import { PlatformHeader } from '../components/platform/PlatformHeader';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +8,7 @@ import { Scene } from '../types';
 import { supabase } from '../lib/supabase';
 
 export function ProfilePage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -144,6 +146,17 @@ export function ProfilePage() {
         icon={<User className="w-6 h-6" />}
         title="Profile"
         description="Account and usage information"
+        tertiaryAction={{
+          label: 'Back',
+          onClick: () => {
+            const idx = (window.history.state as any)?.idx;
+            if (typeof idx === 'number' && idx > 0) {
+              navigate(-1);
+              return;
+            }
+            navigate('/all-scenes');
+          },
+        }}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

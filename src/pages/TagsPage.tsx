@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tags } from 'lucide-react';
 import { PlatformHeader } from '../components/platform/PlatformHeader';
 import { TagManagementPage } from '../components/Dashboard/TagManagementPage';
@@ -7,6 +8,7 @@ import { tagService } from '../services';
 import { Tag } from '../types';
 
 export function TagsPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,17 @@ export function TagsPage() {
         icon={<Tags className="w-6 h-6" />}
         title="Tags"
         description="Create, edit, and reuse tags across your scenes"
+        tertiaryAction={{
+          label: 'Back',
+          onClick: () => {
+            const idx = (window.history.state as any)?.idx;
+            if (typeof idx === 'number' && idx > 0) {
+              navigate(-1);
+              return;
+            }
+            navigate('/all-scenes');
+          },
+        }}
       />
 
       {loading && (

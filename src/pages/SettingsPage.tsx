@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Loader2, Settings, ShieldCheck, ShieldX } from 'lucide-react';
 import { PlatformHeader } from '../components/platform/PlatformHeader';
 
 export function SettingsPage() {
+  const navigate = useNavigate();
   const [apiKey, setApiKey] = useState('');
   const [deletedPlaylistVideos, setDeletedPlaylistVideos] = useState<'mark' | 'remove'>('mark');
   const [saving, setSaving] = useState(false);
@@ -65,6 +67,17 @@ export function SettingsPage() {
         icon={<Settings className="w-6 h-6" />}
         title="Settings"
         description="Preferences and configuration"
+        tertiaryAction={{
+          label: 'Back',
+          onClick: () => {
+            const idx = (window.history.state as any)?.idx;
+            if (typeof idx === 'number' && idx > 0) {
+              navigate(-1);
+              return;
+            }
+            navigate('/all-scenes');
+          },
+        }}
       />
 
       <div className="card p-6 max-w-2xl">

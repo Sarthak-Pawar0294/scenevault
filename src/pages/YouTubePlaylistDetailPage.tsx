@@ -1,18 +1,27 @@
-import { Link, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 export function YouTubePlaylistDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <Link
-            to="/platforms/youtube"
+          <button
+            type="button"
+            onClick={() => {
+              const idx = (window.history.state as any)?.idx;
+              if (typeof idx === 'number' && idx > 0) {
+                navigate(-1);
+                return;
+              }
+              navigate('/platforms/youtube');
+            }}
             className="text-sm text-[var(--text-secondary)] hover:text-white transition"
           >
-            Back to YouTube
-          </Link>
+            Back
+          </button>
           <h1 className="text-2xl font-bold text-white mt-2">Playlist</h1>
           <div className="text-sm text-[var(--text-secondary)] truncate">{id}</div>
         </div>

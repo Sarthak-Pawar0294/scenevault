@@ -184,7 +184,7 @@ export const youtubeService = {
       channelName: string;
       uploadDate: string;
       url: string;
-      position: number;
+      position: number | null;
     }> = [];
 
     let pageToken: string | null = null;
@@ -228,7 +228,7 @@ export const youtubeService = {
           channelName: s?.channelTitle || 'Unknown Channel',
           uploadDate: s?.publishedAt || new Date().toISOString(),
           url: videoId ? `https://www.youtube.com/watch?v=${videoId}` : '',
-          position: Number.isFinite(position) ? position : -1,
+          position: Number.isFinite(position) ? position : null,
         };
       });
 

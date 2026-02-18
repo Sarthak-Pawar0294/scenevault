@@ -364,12 +364,12 @@ export function PlatformPage() {
         const ap = typeof (a as any).playlist_position === 'number' ? (a as any).playlist_position : null;
         const bp = typeof (b as any).playlist_position === 'number' ? (b as any).playlist_position : null;
         if (ap === null && bp === null) {
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         }
         if (ap === null) return 1;
         if (bp === null) return -1;
         if (ap !== bp) return ap - bp;
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
     } else {
       switch (sortBy) {
@@ -767,7 +767,7 @@ export function PlatformPage() {
         thumbnail?: string;
         channelTitle?: string;
         url: string;
-        position: number;
+        position: number | null;
       }> = [];
 
       let pageIndex = 0;
@@ -809,7 +809,7 @@ export function PlatformPage() {
               thumbnail: thumb,
               channelTitle,
               url: `https://www.youtube.com/watch?v=${vid}`,
-              position: Number.isFinite(position) ? position : -1,
+              position: Number.isFinite(position) ? position : null,
             };
           });
 
@@ -825,7 +825,7 @@ export function PlatformPage() {
       setRefreshProgress('Comparing playlist with your library...');
 
       const youtubeVideoIdSet = new Set(allYoutubeVideos.map((v) => v.videoId).filter(Boolean));
-      const youtubeVideoPositionMap = new Map<string, number>();
+      const youtubeVideoPositionMap = new Map<string, number | null>();
       for (const v of allYoutubeVideos) {
         if (!v.videoId) continue;
         youtubeVideoPositionMap.set(v.videoId, v.position);
@@ -863,7 +863,7 @@ export function PlatformPage() {
           return {
             id: String(s?.id || '').trim(),
             user_id: authUser.id,
-            playlist_position: pos,
+            playlist_position: typeof pos === 'number' && Number.isFinite(pos) ? pos : null,
             updated_at: new Date().toISOString(),
             title: s.title,
             platform: s.platform,
