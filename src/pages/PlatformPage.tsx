@@ -296,7 +296,18 @@ export function PlatformPage() {
       return platformScenes.filter((s) => s.source_type === 'manual' || !s.playlist_id);
     }
 
-    return platformScenes.filter((s) => s.playlist_id === selectedYouTubePlaylistId);
+    const list = platformScenes.filter((s) => s.playlist_id === selectedYouTubePlaylistId);
+    return list.sort((a, b) => {
+      const ap = typeof (a as any).playlist_position === 'number' ? (a as any).playlist_position : null;
+      const bp = typeof (b as any).playlist_position === 'number' ? (b as any).playlist_position : null;
+      if (ap === null && bp === null) {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      if (ap === null) return 1;
+      if (bp === null) return -1;
+      if (ap !== bp) return ap - bp;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
   }, [isYouTube, platformScenes, selectedYouTubePlaylistId]);
 
   const filteredScenes = useMemo(() => {
@@ -739,6 +750,7 @@ export function PlatformPage() {
         thumbnail?: string;
         channelTitle?: string;
         url: string;
+        position: number;
       }> = [];
 
       let pageIndex = 0;
@@ -773,12 +785,14 @@ export function PlatformPage() {
               item?.snippet?.thumbnails?.default?.url ||
               '';
             const channelTitle = String(item?.snippet?.channelTitle || '').trim();
+            const position = Number(item?.snippet?.position);
             return {
               videoId: vid,
               title,
               thumbnail: thumb,
               channelTitle,
               url: `https://www.youtube.com/watch?v=${vid}`,
+              position: Number.isFinite(position) ? position : -1,
             };
           });
 
@@ -794,6 +808,11 @@ export function PlatformPage() {
       setRefreshProgress('Comparing playlist with your library...');
 
       const youtubeVideoIdSet = new Set(allYoutubeVideos.map((v) => v.videoId).filter(Boolean));
+      const youtubeVideoPositionMap = new Map<string, number>();
+      for (const v of allYoutubeVideos) {
+        if (!v.videoId) continue;
+        youtubeVideoPositionMap.set(v.videoId, v.position);
+      }
 
       const { data: existingScenes, error: existingErr } = await supabase
         .from('scenes')
@@ -816,6 +835,38 @@ export function PlatformPage() {
         .filter(Boolean);
 
       const newVideos = allYoutubeVideos.filter((v) => !existingVideoIds.has(v.videoId));
+
+      setRefreshProgress('Syncing playlist order...');
+      const positionUpdates = existingRows
+        .map((s: any) => {
+          const vid = String(s?.video_id || '').trim();
+          if (!vid) return null;
+          const pos = youtubeVideoPositionMap.get(vid);
+          if (pos === undefined) return null;
+          return { id: String(s?.id || '').trim(), playlist_position: pos, updated_at: new Date().toISOString() };
+        })
+        .filter((x: any) => !!x && !!x.id);
+
+      if (positionUpdates.length > 0) {
+        const chunk = <T,>(arr: T[], size: number) => {
+          const out: T[][] = [];
+          for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+          return out;
+        };
+
+        const batches = chunk(positionUpdates, 200);
+        for (const batch of batches) {
+          const { error: upErr } = await supabase.from('scenes').upsert(batch as any, { onConflict: 'id' });
+          if (upErr) {
+            const msg = String((upErr as any)?.message || '').toLowerCase();
+            const looksLikeColumnErr = msg.includes('column') || msg.includes('does not exist') || msg.includes('schema cache');
+            if (!looksLikeColumnErr) throw upErr;
+            const fallbackBatch = (batch as any[]).map(({ playlist_position, ...rest }) => rest);
+            const { error: fallbackErr } = await supabase.from('scenes').upsert(fallbackBatch as any, { onConflict: 'id' });
+            if (fallbackErr) throw fallbackErr;
+          }
+        }
+      }
 
       let deletedCount = 0;
 
@@ -857,6 +908,7 @@ export function PlatformPage() {
           url: video.url,
           thumbnail: video.thumbnail || null,
           video_id: video.videoId,
+          playlist_position: video.position,
           channel_name: video.channelTitle || null,
           status: 'available' as const,
           source_type: 'youtube_playlist' as const,

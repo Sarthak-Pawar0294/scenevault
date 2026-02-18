@@ -32,6 +32,7 @@ export interface Scene {
   status: Status;
   source_type: SourceType;
   playlist_id?: string;
+  playlist_position?: number;
   video_id?: string;
   channel_name?: string;
   upload_date?: string;

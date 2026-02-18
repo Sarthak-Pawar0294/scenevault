@@ -184,6 +184,7 @@ export const youtubeService = {
       channelName: string;
       uploadDate: string;
       url: string;
+      position: number;
     }> = [];
 
     let pageToken: string | null = null;
@@ -219,6 +220,7 @@ export const youtubeService = {
       const items = rawItems.map((item: any) => {
         const s = item?.snippet || {};
         const videoId = s?.resourceId?.videoId || '';
+        const position = Number(s?.position);
         return {
           title: s?.title || 'Untitled',
           videoId,
@@ -226,6 +228,7 @@ export const youtubeService = {
           channelName: s?.channelTitle || 'Unknown Channel',
           uploadDate: s?.publishedAt || new Date().toISOString(),
           url: videoId ? `https://www.youtube.com/watch?v=${videoId}` : '',
+          position: Number.isFinite(position) ? position : -1,
         };
       });
 
@@ -289,6 +292,7 @@ export const youtubeService = {
         status: 'available' as Status,
         source_type: 'youtube_playlist',
         playlist_id: playlistId,
+        playlist_position: item.position,
       }));
 
     if (scenesToInsert.length > 0) {
@@ -320,12 +324,12 @@ export const youtubeService = {
         if (!looksLikeMissingColumn) throw error;
 
         const fallbackBatch = batch.map((s) => {
-          const { video_id, channel_name, upload_date, ...rest } = s as any;
+          const { video_id, channel_name, upload_date, playlist_position, ...rest } = s as any;
           return rest;
         });
 
         console.warn('[YouTube Import] Retrying scenes insert without YouTube metadata columns:', {
-          removedFields: ['video_id', 'channel_name', 'upload_date'],
+          removedFields: ['video_id', 'channel_name', 'upload_date', 'playlist_position'],
           firstRow: fallbackBatch[0],
           count: fallbackBatch.length,
           batchIndex: i,
