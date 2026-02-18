@@ -816,7 +816,7 @@ export function PlatformPage() {
 
       const { data: existingScenes, error: existingErr } = await supabase
         .from('scenes')
-        .select('id, video_id')
+        .select('id, video_id, title, platform, category')
         .eq('user_id', authUser.id)
         .eq('platform', 'YouTube')
         .eq('playlist_id', playlistId)
@@ -848,6 +848,9 @@ export function PlatformPage() {
             user_id: authUser.id,
             playlist_position: pos,
             updated_at: new Date().toISOString(),
+            title: s.title,
+            platform: s.platform,
+            category: s.category,
           };
         })
         .filter((x: any) => !!x && !!x.id);
