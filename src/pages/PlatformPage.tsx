@@ -313,6 +313,9 @@ export function PlatformPage() {
   const filteredScenes = useMemo(() => {
     let filtered = [...filteredPlatformScenes];
 
+    const isYouTubePlaylistView =
+      isYouTube && !!selectedYouTubePlaylistId && selectedYouTubePlaylistId !== '__manual__';
+
     const q = debouncedQuery.trim().toLowerCase();
     if (q) {
       filtered = filtered.filter((s) => {
@@ -356,23 +359,37 @@ export function PlatformPage() {
       });
     }
 
-    switch (sortBy) {
-      case 'newest':
-        filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        break;
-      case 'oldest':
-        filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        break;
-      case 'title-asc':
-        filtered.sort((a, b) => a.title.localeCompare(b.title));
-        break;
-      case 'title-desc':
-        filtered.sort((a, b) => b.title.localeCompare(a.title));
-        break;
+    if (isYouTubePlaylistView) {
+      filtered.sort((a, b) => {
+        const ap = typeof (a as any).playlist_position === 'number' ? (a as any).playlist_position : null;
+        const bp = typeof (b as any).playlist_position === 'number' ? (b as any).playlist_position : null;
+        if (ap === null && bp === null) {
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        }
+        if (ap === null) return 1;
+        if (bp === null) return -1;
+        if (ap !== bp) return ap - bp;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      });
+    } else {
+      switch (sortBy) {
+        case 'newest':
+          filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          break;
+        case 'oldest':
+          filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+          break;
+        case 'title-asc':
+          filtered.sort((a, b) => a.title.localeCompare(b.title));
+          break;
+        case 'title-desc':
+          filtered.sort((a, b) => b.title.localeCompare(a.title));
+          break;
+      }
     }
 
     return filtered;
-  }, [activeChip, debouncedQuery, filters.categories, filters.dateRange, filters.statuses, filteredPlatformScenes, sortBy]);
+  }, [activeChip, debouncedQuery, filters.categories, filters.dateRange, filters.statuses, filteredPlatformScenes, isYouTube, selectedYouTubePlaylistId, sortBy]);
 
   const stats = useMemo(() => {
     const available = platformScenes.filter((s) => s.status === 'available').length;
