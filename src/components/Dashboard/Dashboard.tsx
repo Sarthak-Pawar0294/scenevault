@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Scene, SceneFormData, Stats, Platform, Category, Status, YouTubePlaylist, Tag } from '../../types';
@@ -52,7 +52,6 @@ const defaultFilterState: FilterState = {
 export function Dashboard() {
   const { user } = useAuth();
   const [scenes, setScenes] = useState<Scene[]>([]);
-  const [filteredScenes, setFilteredScenes] = useState<Scene[]>([]);
   const [loading, setLoading] = useState(true);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -117,6 +116,48 @@ export function Dashboard() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filterState));
   }, [filterState]);
 
+  const filteredScenes = useMemo(() => {
+    let filtered = [...scenes];
+
+    if (filterState.searchQuery) {
+      const query = filterState.searchQuery.toLowerCase();
+      filtered = filtered.filter((scene) =>
+        scene.title.toLowerCase().includes(query) ||
+        scene.channel_name?.toLowerCase().includes(query) ||
+        scene.notes?.toLowerCase().includes(query) ||
+        scene.timestamp?.toLowerCase().includes(query)
+      );
+    }
+
+    if (filterState.selectedPlatform !== 'all') {
+      filtered = filtered.filter((scene) => scene.platform === filterState.selectedPlatform);
+    }
+
+    if (filterState.selectedCategory !== 'all') {
+      filtered = filtered.filter((scene) => scene.category === filterState.selectedCategory);
+    }
+
+    if (filterState.selectedStatus !== 'all') {
+      filtered = filtered.filter((scene) => scene.status === filterState.selectedStatus);
+    }
+
+    filtered.sort((a, b) => {
+      switch (filterState.sortBy) {
+        case 'oldest':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'title-asc':
+          return a.title.localeCompare(b.title);
+        case 'title-desc':
+          return b.title.localeCompare(a.title);
+        case 'newest':
+        default:
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+
+    return filtered;
+  }, [scenes, filterState]);
+
   useEffect(() => {
     if (user) {
       loadScenes();
@@ -150,11 +191,6 @@ export function Dashboard() {
     });
     return created;
   };
-
-  useEffect(() => {
-    if (debouncedSearchQuery !== filterState.searchQuery) return;
-    filterAndSortScenes();
-  }, [debouncedSearchQuery, filterState.selectedPlatform, filterState.selectedCategory, filterState.selectedStatus, filterState.sortBy, scenes]);
 
   useEffect(() => {
     if (activeSection === 'all') {
@@ -233,65 +269,6 @@ export function Dashboard() {
       console.error('Error loading YouTube playlists:', error);
       setYoutubePlaylists([]);
     }
-  };
-
-  const filterAndSortScenes = () => {
-    let filtered = [...scenes];
-
-    if (debouncedSearchQuery) {
-      const query = debouncedSearchQuery.toLowerCase();
-      filtered = filtered.filter((scene) =>
-        scene.title.toLowerCase().includes(query) ||
-        scene.channel_name?.toLowerCase().includes(query) ||
-        scene.notes?.toLowerCase().includes(query) ||
-        scene.timestamp?.toLowerCase().includes(query)
-      );
-    }
-
-    if (filterState.selectedPlatform !== 'all') {
-      filtered = filtered.filter((scene) => scene.platform === filterState.selectedPlatform);
-    }
-
-    if (filterState.selectedCategory !== 'all') {
-      filtered = filtered.filter((scene) => scene.category === filterState.selectedCategory);
-    }
-
-    if (filterState.selectedStatus !== 'all') {
-      filtered = filtered.filter((scene) => scene.status === filterState.selectedStatus);
-    }
-
-    if (filterState.selectedTagIds.length > 0) {
-      const wanted = new Set(filterState.selectedTagIds);
-      filtered = filtered.filter((scene) => {
-        const ids = new Set((scene.tags || []).map((t) => t.id));
-        if (filterState.tagMatchMode === 'and') {
-          for (const id of wanted) {
-            if (!ids.has(id)) return false;
-          }
-          return true;
-        }
-        for (const id of wanted) {
-          if (ids.has(id)) return true;
-        }
-        return false;
-      });
-    }
-
-    filtered.sort((a, b) => {
-      switch (filterState.sortBy) {
-        case 'oldest':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        case 'title-asc':
-          return a.title.localeCompare(b.title);
-        case 'title-desc':
-          return b.title.localeCompare(a.title);
-        case 'newest':
-        default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-    });
-
-    setFilteredScenes(filtered);
   };
 
   const isPlatformPage = activeSection !== 'all' && activeSection !== 'profile' && activeSection !== 'YouTube';
@@ -792,7 +769,7 @@ export function Dashboard() {
 
       const scenesToInsert = allItems
         .filter((item: any) => item.videoId && !existingVideoIds.has(item.videoId))
-        .map((item: any) => ({
+        .map((item: any, index: number) => ({
           user_id: user!.id,
           title: item.title,
           platform: 'YouTube' as Platform,
@@ -802,6 +779,7 @@ export function Dashboard() {
           thumbnail: item.thumbnail,
           channel_name: item.channelName,
           upload_date: new Date(item.uploadDate).toISOString(),
+          notes: `Playlist position: ${(item.position ?? index) + 1}`,
           status: 'available' as Status,
           source_type: 'youtube_playlist',
           playlist_id: playlistId,

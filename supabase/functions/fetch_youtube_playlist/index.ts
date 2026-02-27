@@ -9,6 +9,7 @@ interface PlaylistItem {
   channelName: string;
   uploadDate: string;
   url: string;
+  position: number;
 }
 
 interface FetchPlaylistRequest {
@@ -145,17 +146,20 @@ Deno.serve(async (req: Request) => {
         return {};
       }
     })() as any;
-    const items: PlaylistItem[] = (data.items || []).map((item: any) => {
-      const snippet = item.snippet;
-      return {
-        title: snippet.title || "Untitled",
-        videoId: snippet.resourceId?.videoId || "",
-        thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || "",
-        channelName: snippet.channelTitle || "Unknown Channel",
-        uploadDate: snippet.publishedAt || new Date().toISOString(),
-        url: `https://www.youtube.com/watch?v=${snippet.resourceId?.videoId}`,
-      };
-    });
+    const items: PlaylistItem[] = (data.items || [])
+      .map((item: any) => {
+        const snippet = item.snippet;
+        return {
+          title: snippet.title || "Untitled",
+          videoId: snippet.resourceId?.videoId || "",
+          thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || "",
+          channelName: snippet.channelTitle || "Unknown Channel",
+          uploadDate: snippet.publishedAt || new Date().toISOString(),
+          url: `https://www.youtube.com/watch?v=${snippet.resourceId?.videoId}`,
+          position: snippet.position ?? 0,
+        };
+      })
+      .sort((a: PlaylistItem, b: PlaylistItem) => a.position - b.position);
 
     return new Response(
       JSON.stringify({
